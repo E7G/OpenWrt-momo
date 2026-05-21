@@ -1,10 +1,18 @@
-# 为 23.05-SNAPSHOT / arm_cortex-a7_neon-vfpv4 产出 ipk（闭源固件无 SDK 时用）
-# Actions → build-ipq50xx-23.05 → Run workflow（无需填参数）
+# 为 23.05-SNAPSHOT / arm_cortex-a7_neon-vfpv4 产出 ipk，发布到本仓库 GitHub Releases
+# Actions → build-ipq50xx-23.05 → Run workflow
 
 name: build-ipq50xx-23.05
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release 标签（留空则使用 openwrt-23.05-build-<run_number>）'
+        required: false
+        type: string
+
+permissions:
+  contents: write
 
 env:
   TARGET_ARCH: arm_cortex-a7_neon-vfpv4
@@ -27,20 +35,45 @@ jobs:
           PACKAGES: luci-app-momo
           NO_REFRESH_CHECK: true
 
-      - name: upload ipk
-        uses: actions/upload-artifact@v7
+      - name: prepare release assets
+        run: |
+          PKG_DIR="bin/packages/${{ env.TARGET_ARCH }}/momo"
+          mkdir -p release
+          cp "$PKG_DIR"/*.ipk release/
+          tar -czf "release/momo_${{ env.TARGET_ARCH }}-${{ env.FEED_BRANCH }}.tar.gz" -C "$PKG_DIR" .
+          ls -la release/
+
+      - name: release
+        uses: softprops/action-gh-release@v3
         with:
-          name: momo_${{ env.TARGET_ARCH }}-${{ env.FEED_BRANCH }}
-          path: bin/packages/${{ env.TARGET_ARCH }}/momo
+          tag_name: ${{ inputs.tag != '' && inputs.tag || format('openwrt-23.05-build-{0}', github.run_number) }}
+          name: momo ${{ env.TARGET_ARCH }} (OpenWrt 23.05.5)
+          body: |
+            ## 预编译包
+
+            | 项 | 值 |
+            |----|-----|
+            | 架构 | `${{ env.TARGET_ARCH }}` |
+            | OpenWrt | 23.05.5 SDK（对应设备 `23.05-SNAPSHOT` / `DISTRIB_ARCH`） |
+            | 目标示例 | ipq50xx_32、Nwrt 等 armv7 路由 |
+
+            ## 安装
+
+            1. 下载下方 `*.ipk` 或 `*.tar.gz` 到路由器 `/tmp/`
+            2. 先安装 **sing-box**（本 Release 不含）
+            3. `opkg install /tmp/momo_*.ipk /tmp/luci-app-momo_*.ipk`
+            4. 依赖冲突时可试：`opkg install --force-depends ...`
+
+            ## 说明
+
+            - 基于官方 OpenWrt **23.05.5** SDK 交叉编译，非上游 `momomomo.pages.dev` 预编译源
+            - 闭源/定制固件请自行验证兼容性
+          files: release/*
+          make_latest: true
 
       - name: install hint
         run: |
-          echo '## 路由器安装' >> "$GITHUB_STEP_SUMMARY"
-          echo '1. 下载 Artifacts 中的 ipk' >> "$GITHUB_STEP_SUMMARY"
-          echo '2. scp 到路由 /tmp/' >> "$GITHUB_STEP_SUMMARY"
-          echo '3. 先安装 sing-box，再：' >> "$GITHUB_STEP_SUMMARY"
-          echo '```sh' >> "$GITHUB_STEP_SUMMARY"
-          echo 'opkg install /tmp/momo_*.ipk /tmp/luci-app-momo_*.ipk' >> "$GITHUB_STEP_SUMMARY"
-          echo '# 若提示依赖：opkg install --force-depends /tmp/momo_*.ipk /tmp/luci-app-momo_*.ipk' >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          echo '闭源固件可能与官方 23.05.5 SDK 有差异，仅用于测试。' >> "$GITHUB_STEP_SUMMARY"
+          TAG="${{ inputs.tag != '' && inputs.tag || format('openwrt-23.05-build-{0}', github.run_number) }}"
+          echo "## Release 已发布" >> "$GITHUB_STEP_SUMMARY"
+          echo "标签: \`$TAG\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "请在仓库 **Releases** 页面下载 ipk。" >> "$GITHUB_STEP_SUMMARY"

@@ -6,6 +6,21 @@ English | [中文](README.zh.md)
 
 Transparent Proxy with sing-box on OpenWrt.
 
+## This Fork (E7G)
+
+Fork of [nikkinikki-org/OpenWrt-momo](https://github.com/nikkinikki-org/OpenWrt-momo) with extra support for **OpenWrt 23.05-SNAPSHOT** and **`arm_cortex-a7_neon-vfpv4`** (e.g. ipq50xx_32 / Nwrt).
+
+| Item | Upstream | This fork |
+|------|----------|-----------|
+| Prebuilt ipk | [momomomo.pages.dev](https://momomomo.pages.dev) (no 23.05) | **[GitHub Releases](https://github.com/E7G/OpenWrt-momo/releases)** |
+| One-click CI | 24.10 / 25.12 / SNAPSHOT matrix | **build-ipq50xx-23.05** (23.05.5 SDK) |
+
+**Install from Release:** download `momo_*.ipk` and `luci-app-momo_*.ipk` from [Releases](https://github.com/E7G/OpenWrt-momo/releases), install `sing-box` first, then `opkg install /tmp/momo_*.ipk /tmp/luci-app-momo_*.ipk`.
+
+**Build & publish:** run workflow **build-ipq50xx-23.05** under Actions; ipk are published to **Releases** (not upstream feed / workflow Artifacts for that job).
+
+See [README.zh.md](README.zh.md) for Chinese notes (subscription, DNS, Core Only).
+
 ## Prerequisites
 
 - OpenWrt >= 24.10
@@ -83,6 +98,10 @@ make package/luci-app-momo/compile
 ```
 
 The package files will be found under `bin/packages/your_architecture/momo`.
+
+### GitHub Actions (OpenWrt 23.05)
+
+Run **build-ipq50xx-23.05** and download ipk from **[Releases](https://github.com/E7G/OpenWrt-momo/releases)**. See [This Fork (E7G)](#this-fork-e7g) above.
 
 ## Dependencies
 
