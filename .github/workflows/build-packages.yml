@@ -49,6 +49,7 @@ jobs:
           - i386_pentium4
           - x86_64
         branch:
+          - openwrt-23.05
           - openwrt-24.10
           - openwrt-25.12
           - SNAPSHOT
@@ -64,10 +65,19 @@ jobs:
       - name: checkout
         uses: actions/checkout@v6
 
+      - name: resolve sdk arch tag
+        id: archtag
+        run: |
+          if [ "${{ matrix.branch }}" = "openwrt-23.05" ]; then
+            echo "value=${{ matrix.arch }}-23.05.5" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${{ matrix.arch }}-${{ matrix.branch }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: build
         uses: openwrt/gh-action-sdk@main
         env:
-          ARCH: ${{ matrix.arch }}-${{ matrix.branch }}
+          ARCH: ${{ steps.archtag.outputs.value }}
           FEEDNAME: momo
           PACKAGES: luci-app-momo
           NO_REFRESH_CHECK: true
@@ -86,11 +96,23 @@ jobs:
       - name: checkout
         uses: actions/checkout@v6
 
+      - name: resolve sdk arch tag
+        if: inputs.sdk_url == ''
+        id: archtag
+        run: |
+          branch="${{ inputs.target_branch }}"
+          arch="${{ inputs.target_arch }}"
+          if [ "$branch" = "openwrt-23.05" ]; then
+            echo "value=${arch}-23.05.5" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${arch}-${branch}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: build with official sdk
         if: inputs.sdk_url == ''
         uses: openwrt/gh-action-sdk@main
         env:
-          ARCH: ${{ inputs.target_arch }}-${{ inputs.target_branch }}
+          ARCH: ${{ steps.archtag.outputs.value }}
           FEEDNAME: momo
           PACKAGES: luci-app-momo
           NO_REFRESH_CHECK: true
@@ -99,13 +121,18 @@ jobs:
         if: inputs.sdk_url != ''
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libncurses5-dev zlib1g-dev gawk gettext python3-distutils
+          sudo apt-get install -y build-essential libncurses5-dev zlib1g-dev gawk gettext python3-distutils zstd
 
       - name: build with custom sdk
         if: inputs.sdk_url != ''
         run: |
-          wget -q -O sdk.tar.xz "${{ inputs.sdk_url }}"
-          tar -x -J -f sdk.tar.xz
+          set -e
+          wget -q -O sdk.archive "${{ inputs.sdk_url }}"
+          case "${{ inputs.sdk_url }}" in
+            *.tar.zst) zstd -d -c sdk.archive | tar -x ;;
+            *.tar.xz|*.txz) tar -x -J -f sdk.archive ;;
+            *) tar -xf sdk.archive ;;
+          esac
           SDK_DIR=$(find . -maxdepth 1 -type d -name '*sdk*' | head -1)
           echo "SDK_DIR=$SDK_DIR" >> "$GITHUB_ENV"
 

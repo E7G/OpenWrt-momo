@@ -72,6 +72,8 @@ wget -O - https://github.com/nikkinikki-org/OpenWrt-momo/raw/refs/heads/main/uni
 
 ## 编译
 
+### 本地 / SDK
+
 ```shell
 # 添加源
 echo "src-git momo https://github.com/nikkinikki-org/OpenWrt-momo.git;main" >> "feeds.conf.default"
@@ -83,6 +85,20 @@ make package/luci-app-momo/compile
 ```
 
 编译结果可以在`bin/packages/your_architecture/momo`内找到。
+
+### GitHub Actions（OpenWrt 23.05）
+
+官方预编译源未覆盖 23.05 时，可在本仓库 **Actions** 中运行：
+
+- **build-ipq50xx-23.05**：一键产出 `arm_cortex-a7_neon-vfpv4` / `openwrt-23.05` 的 ipk（使用官方 SDK `23.05.5`）
+- **build-packages** → Run workflow：填 `target_arch=arm_cortex-a7_neon-vfpv4`、`target_branch=openwrt-23.05`
+
+完成后在 **Artifacts** 下载，上传到路由器安装（需已安装 `sing-box`）：
+
+```shell
+opkg install /tmp/momo_*.ipk /tmp/luci-app-momo_*.ipk
+# 依赖冲突时可试：opkg install --force-depends /tmp/momo_*.ipk /tmp/luci-app-momo_*.ipk
+```
 
 ## 依赖
 
