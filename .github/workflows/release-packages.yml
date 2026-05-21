@@ -2,6 +2,15 @@ name: release-packages
 
 on:
   workflow_dispatch:
+    inputs:
+      target_branch:
+        description: 'Target branch for selective build (e.g. openwrt-23.05). Leave empty for full matrix.'
+        required: false
+        type: string
+      target_arch:
+        description: 'Target arch for selective build (e.g. arm_cortex-a7_neon-vfpv4). Leave empty for full matrix.'
+        required: false
+        type: string
   push:
     tags:
       - v*
@@ -10,6 +19,7 @@ jobs:
   release:
     name: ${{ matrix.arch }}-${{ matrix.branch }} release
     runs-on: ubuntu-latest
+    if: inputs.target_branch == '' && inputs.target_arch == ''
     continue-on-error: true
     strategy:
       fail-fast: false
@@ -39,7 +49,6 @@ jobs:
           - i386_pentium4
           - x86_64
         branch:
-          - openwrt-23.05
           - openwrt-24.10
           - openwrt-25.12
           - SNAPSHOT
@@ -50,8 +59,6 @@ jobs:
             branch: SNAPSHOT
           - arch: riscv64_generic
             branch: openwrt-24.10
-          - arch: loongarch64_generic
-            branch: openwrt-23.05
 
     steps:
       - name: checkout
@@ -88,10 +95,43 @@ jobs:
           name: feed_momo_${{ matrix.arch }}-${{ matrix.branch }}
           path: feed_momo_${{ matrix.arch }}-${{ matrix.branch }}.tar.gz
 
+  release-selective:
+    name: ${{ inputs.target_arch }}-${{ inputs.target_branch }} selective release
+    runs-on: ubuntu-latest
+    if: inputs.target_branch != '' && inputs.target_arch != ''
+    steps:
+      - name: checkout
+        uses: actions/checkout@v6
+
+      - name: build
+        uses: openwrt/gh-action-sdk@main
+        env:
+          ARCH: ${{ inputs.target_arch }}-${{ inputs.target_branch }}
+          FEEDNAME: momo
+          PACKAGES: luci-app-momo
+          INDEX: 1
+          KEY_BUILD: ${{ secrets.KEY_BUILD }}
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+          NO_REFRESH_CHECK: true
+
+      - name: compress
+        run: |
+          tar -c -z -f momo_${{ inputs.target_arch }}-${{ inputs.target_branch }}.tar.gz -C bin/packages/${{ inputs.target_arch }}/momo .
+          mkdir -p public/${{ inputs.target_branch }}/${{ inputs.target_arch }}
+          mv bin/packages/${{ inputs.target_arch }}/momo public/${{ inputs.target_branch }}/${{ inputs.target_arch }}
+          tar -c -z -f feed_momo_${{ inputs.target_arch }}-${{ inputs.target_branch }}.tar.gz public/${{ inputs.target_branch }}/${{ inputs.target_arch }}
+
+      - name: upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: feed_momo_${{ inputs.target_arch }}-${{ inputs.target_branch }}
+          path: feed_momo_${{ inputs.target_arch }}-${{ inputs.target_branch }}.tar.gz
+
   feed:
-    needs: release
+    needs: [release, release-selective]
     name: feed
     runs-on: ubuntu-latest
+    if: always() && (needs.release.result == 'success' || needs.release-selective.result == 'success')
 
     steps:
       - name: download
@@ -99,11 +139,11 @@ jobs:
         with:
           pattern: feed_momo_*
           merge-multiple: true
-      
+
       - name: uncompress
         run: |
           for file in feed_momo_*.tar.gz; do tar -x -z -f "$file"; done
-      
+
       - name: prepare
         run: |
           echo "${{ secrets.KEY_BUILD_PUB }}" > public/key-build.pub
