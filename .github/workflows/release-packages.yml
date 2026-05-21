@@ -11,6 +11,10 @@ on:
         description: 'Target arch for selective build (e.g. arm_cortex-a7_neon-vfpv4). Leave empty for full matrix.'
         required: false
         type: string
+      sdk_url:
+        description: 'Custom SDK download URL (for unofficial targets). Leave empty to use official SDK.'
+        required: false
+        type: string
   push:
     tags:
       - v*
@@ -103,7 +107,8 @@ jobs:
       - name: checkout
         uses: actions/checkout@v6
 
-      - name: build
+      - name: build with official sdk
+        if: inputs.sdk_url == ''
         uses: openwrt/gh-action-sdk@main
         env:
           ARCH: ${{ inputs.target_arch }}-${{ inputs.target_branch }}
@@ -113,6 +118,40 @@ jobs:
           KEY_BUILD: ${{ secrets.KEY_BUILD }}
           PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
           NO_REFRESH_CHECK: true
+
+      - name: install dependencies
+        if: inputs.sdk_url != ''
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libncurses5-dev zlib1g-dev gawk gettext python3-distutils
+
+      - name: build with custom sdk
+        if: inputs.sdk_url != ''
+        run: |
+          wget -q -O sdk.tar.xz "${{ inputs.sdk_url }}"
+          tar -x -J -f sdk.tar.xz
+          SDK_DIR=$(find . -maxdepth 1 -type d -name '*sdk*' | head -1)
+          echo "SDK_DIR=$SDK_DIR" >> "$GITHUB_ENV"
+
+          cd "$SDK_DIR"
+
+          echo "src-link momo $GITHUB_WORKSPACE" >> feeds.conf.default
+
+          make prepare
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+          make package/momo/compile V=s
+          make package/momo/install V=s
+          make package/luci-app-momo/compile V=s
+          make package/luci-app-momo/install V=s
+          make package/index
+
+      - name: collect packages
+        if: inputs.sdk_url != ''
+        run: |
+          mkdir -p bin/packages/${{ inputs.target_arch }}/momo
+          find "$SDK_DIR/bin" -name "*.ipk" -path "*/momo/*" -exec cp {} bin/packages/${{ inputs.target_arch }}/momo/ \;
 
       - name: compress
         run: |
