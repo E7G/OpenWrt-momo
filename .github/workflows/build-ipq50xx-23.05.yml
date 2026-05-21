@@ -17,7 +17,7 @@ env:
 
 jobs:
   build:
-    name: ${{ env.TARGET_ARCH }}-${{ env.TARGET_BRANCH }}
+    name: arm_cortex-a7_neon-vfpv4-openwrt-23.05
     runs-on: ubuntu-latest
     steps:
       - name: checkout
