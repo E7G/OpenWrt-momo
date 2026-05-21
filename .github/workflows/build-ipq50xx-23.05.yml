@@ -1,0 +1,72 @@
+# 一键编译：ipq50xx_32 / arm_cortex-a7_neon-vfpv4 / OpenWrt 23.05
+# Actions → build-ipq50xx-23.05 → Run workflow（sdk_url 可留空）
+
+name: build-ipq50xx-23.05
+
+on:
+  workflow_dispatch:
+    inputs:
+      sdk_url:
+        description: '自定义 SDK 直链（Nwrt 等非官方固件）。留空则使用官方 openwrt-23.05 SDK'
+        required: false
+        type: string
+
+env:
+  TARGET_ARCH: arm_cortex-a7_neon-vfpv4
+  TARGET_BRANCH: openwrt-23.05
+
+jobs:
+  build:
+    name: ${{ env.TARGET_ARCH }}-${{ env.TARGET_BRANCH }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v6
+
+      - name: build with official sdk
+        if: inputs.sdk_url == ''
+        uses: openwrt/gh-action-sdk@main
+        env:
+          ARCH: ${{ env.TARGET_ARCH }}-${{ env.TARGET_BRANCH }}
+          FEEDNAME: momo
+          PACKAGES: luci-app-momo
+          NO_REFRESH_CHECK: true
+
+      - name: install dependencies
+        if: inputs.sdk_url != ''
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libncurses5-dev zlib1g-dev gawk gettext python3-distutils
+
+      - name: build with custom sdk
+        if: inputs.sdk_url != ''
+        run: |
+          wget -q -O sdk.tar.xz "${{ inputs.sdk_url }}"
+          tar -x -J -f sdk.tar.xz
+          SDK_DIR=$(find . -maxdepth 1 -type d -name '*sdk*' | head -1)
+          echo "SDK_DIR=$SDK_DIR" >> "$GITHUB_ENV"
+
+          cd "$SDK_DIR"
+          echo "src-link momo $GITHUB_WORKSPACE" >> feeds.conf.default
+
+          make prepare
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+          make package/momo/compile V=s
+          make package/momo/install V=s
+          make package/luci-app-momo/compile V=s
+          make package/luci-app-momo/install V=s
+          make package/index
+
+      - name: collect packages
+        if: inputs.sdk_url != ''
+        run: |
+          mkdir -p bin/packages/${{ env.TARGET_ARCH }}/momo
+          find "$SDK_DIR/bin" -name "*.ipk" -path "*/momo/*" -exec cp {} bin/packages/${{ env.TARGET_ARCH }}/momo/ \;
+
+      - name: upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: momo_${{ env.TARGET_ARCH }}-${{ env.TARGET_BRANCH }}
+          path: bin/packages/${{ env.TARGET_ARCH }}/momo
