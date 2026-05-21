@@ -100,6 +100,30 @@ export function get_cgroups_version() {
 	return system('mount | grep -q -w "^cgroup"') == 0 ? 1 : 2;
 };
 
+export function get_kernel_version() {
+	const process = popen('uname -r');
+	if (process) {
+		const line = trim(process.read('line'));
+		process.close();
+		const parts = split(line, '.');
+		return {
+			major: int(parts[0]) ?? 0,
+			minor: int(parts[1]) ?? 0,
+			patch: int(split(parts[2] ?? '0', '-')[0]) ?? 0
+		};
+	}
+	return { major: 0, minor: 0, patch: 0 };
+};
+
+export function kernel_version_gte(major, minor, patch) {
+	const kv = get_kernel_version();
+	if (kv.major > major) return true;
+	if (kv.major < major) return false;
+	if (kv.minor > minor) return true;
+	if (kv.minor < minor) return false;
+	return kv.patch >= (patch ?? 0);
+};
+
 export function get_users() {
 	return map(split(readfile('/etc/passwd'), '\n'), (x) => split(x, ':')[0]);
 };

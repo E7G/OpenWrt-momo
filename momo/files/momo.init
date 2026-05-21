@@ -346,9 +346,13 @@ service_started() {
 			$FIREWALL_INCLUDE_SH
 		fi
 		if [ -n "$fake_ip6_range" ]; then
-			ip link add "$dummy_device" type dummy
-			ip link set dev "$dummy_device" up
-			ip -6 route add "$fake_ip6_range" dev "$dummy_device"
+			if ip link add "$dummy_device" type dummy 2>/dev/null; then
+				ip link set dev "$dummy_device" up
+				ip -6 route add "$fake_ip6_range" dev "$dummy_device"
+			else
+				ip -6 route add local "$fake_ip6_range" dev lo
+				echo "$fake_ip6_range" > "$FAKE_IP6_LOCAL_ROUTE_FLAG_PATH"
+			fi
 		fi
 		# hijack
 		utpl -S "$HIJACK_UT" | nft -f -
@@ -396,6 +400,12 @@ cleanup() {
 	ip -6 route flush table "$tun_route_table" > /dev/null 2>&1
 	# delete dummy device
 	ip -6 link del "$dummy_device" > /dev/null 2>&1
+	# delete fake ip6 local route fallback
+	if [ -f "$FAKE_IP6_LOCAL_ROUTE_FLAG_PATH" ]; then
+		local fake_ip6_range; fake_ip6_range=$(cat "$FAKE_IP6_LOCAL_ROUTE_FLAG_PATH")
+		ip -6 route del local "$fake_ip6_range" dev lo > /dev/null 2>&1
+		rm -f "$FAKE_IP6_LOCAL_ROUTE_FLAG_PATH"
+	fi
 	# delete hijack
 	nft delete table inet momo > /dev/null 2>&1
 	local handles handle

@@ -42,6 +42,7 @@ PID_FILE_PATH="$TEMP_DIR/momo.pid"
 STARTED_FLAG_PATH="$TEMP_DIR/started.flag"
 BRIDGE_NF_CALL_IPTABLES_FLAG_PATH="$TEMP_DIR/bridge_nf_call_iptables.flag"
 BRIDGE_NF_CALL_IP6TABLES_FLAG_PATH="$TEMP_DIR/bridge_nf_call_ip6tables.flag"
+FAKE_IP6_LOCAL_ROUTE_FLAG_PATH="$TEMP_DIR/fake_ip6_local_route.flag"
 
 # functions
 get_paths() {
@@ -77,6 +78,7 @@ get_paths() {
 	json_add_string started_flag_path "$STARTED_FLAG_PATH"
 	json_add_string bridge_nf_call_iptables_flag_path "$BRIDGE_NF_CALL_IPTABLES_FLAG_PATH"
 	json_add_string bridge_nf_call_ip6tables_flag_path "$BRIDGE_NF_CALL_IP6TABLES_FLAG_PATH"
+	json_add_string fake_ip6_local_route_flag_path "$FAKE_IP6_LOCAL_ROUTE_FLAG_PATH"
 
 	json_dump
 
